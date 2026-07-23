@@ -20,17 +20,12 @@ const express = require('express');
 // Instantiate the Express application — this is the HTTP/routing layer.
 const app = express();
 
-// Resolve the listen port: honor the PORT environment variable when provided,
-// otherwise default to 3000 for local/tutorial use.
-const PORT = process.env.PORT || 3000;
-
 // GET / — pre-existing endpoint. Responds with the exact plain-text body "Hello world".
 app.get('/', (req, res) => res.send('Hello world'));
 
 // GET /good-evening — new, additive endpoint. Responds with the exact body "Good evening".
 app.get('/good-evening', (req, res) => res.send('Good evening'));
 
-// Start listening for incoming HTTP requests and log the bound port on startup.
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+// Start listening for incoming HTTP requests. The listen port honors the PORT
+// environment variable when set, otherwise defaults to 3000 for local/tutorial use.
+app.listen(process.env.PORT || 3000);
