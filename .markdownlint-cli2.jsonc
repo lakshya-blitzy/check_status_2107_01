@@ -1,0 +1,149 @@
+// markdownlint-cli2 configuration -- the documentation quality gate for
+// check_status_2107_01.
+//
+// PURPOSE
+// This file is the machine-enforced half of the repository's Markdown style
+// contract. Before it existed there was no documentation quality gate of any
+// kind -- `.markdownlint.json`, `.markdownlint.yaml`, `.markdownlintrc`,
+// `.prettierrc`, `.prettierignore` and `.editorconfig` were all absent -- so
+// "comprehensive documentation" was a matter of reviewer taste rather than a
+// pass/fail condition. Everything below replaces that subjective review with a
+// single command any contributor can run:
+//
+//     npm run lint:md   # -> npx --yes markdownlint-cli2@0.23.2 "**/*.md"
+//                       #    MUST exit 0  ("Summary: 0 issues")
+//
+// PINNED TOOLING
+// Every decision here was calibrated against markdownlint-cli2 0.23.2, which
+// bundles markdownlint 0.41.1 -- the exact pair named by the `lint:md` script
+// in `package.json`. A correct run announces itself as:
+//
+//     markdownlint-cli2 v0.23.2 (markdownlint v0.41.1)
+//     Finding: **/*.md !node_modules/** !docs-api/**
+//
+// That `Finding:` line doubles as proof this file was loaded. If it appears
+// without the two negations, the configuration was NOT picked up and the run
+// tells you nothing. Note the two different Node floors in play: this tool
+// version declares `engines: node >= 22`, whereas `package.json` declares
+// `node >= 18` because that is what express 5.2.1 requires. A contributor on
+// Node 18 or 20 can therefore run the server but needs Node 22 or newer to run
+// this gate.
+//
+// SCOPE DISCIPLINE
+// Three rule entries, one `globs`, one `ignores` -- and nothing else. No
+// plugins, no custom rules, no `fix` flag and no `outputFormatters`: each would
+// add behaviour that nothing in this repository requires and would make the
+// gate harder to reproduce from a clean checkout. Rules without a measured
+// reason to be overridden keep their markdownlint defaults, so this file stays
+// short enough to read in full before changing it.
+{
+  // Rule overrides. Only rules with measured evidence behind them appear here.
+  "config": {
+    // MD013/line-length -- DISABLED.
+    //
+    // Long prose lines and wide contract tables are intentional in this
+    // repository, and rewrapping them would harm readability. Two concrete
+    // cases force the decision:
+    //
+    //   1. The README's lead paragraph is a single 218-character line carried
+    //      over verbatim from the tracked original. Against the rule's default
+    //      80-column limit it fails as:
+    //          README.md:3:81 MD013/line-length [Expected: 80; Actual: 218]
+    //      Rewrapping it would rewrite prose that is deliberately preserved.
+    //   2. The API reference states each endpoint's status code, exact response
+    //      body, Content-Length and full response-header set in pipe tables.
+    //      Those rows are wide because the contract they carry is wide, and
+    //      MD060 below additionally requires their pipes to line up -- which is
+    //      flatly incompatible with an 80-column ceiling.
+    //
+    // Disabling the rule is preferred over merely raising `line_length` to some
+    // larger number: any finite ceiling would eventually be tripped by a
+    // legitimately wide contract table and would invite the wrong fix, namely
+    // mangling the table instead of trusting it.
+    "MD013": false,
+
+    // MD034/no-bare-urls -- ENFORCED. (This restates the markdownlint default
+    // explicitly, so the choice is visible rather than inherited.)
+    //
+    // A bare URL is a real defect, not a stylistic quibble: it renders
+    // inconsistently across Markdown processors and carries no link text, which
+    // leaves readers using a screen reader with an address instead of a
+    // description. Genuinely reachable external addresses must therefore use
+    // standard link syntax -- for example [Express](https://expressjs.com/).
+    //
+    // CRITICAL INTERACTION -- do NOT satisfy this rule with an autolink.
+    // The obvious response to an MD034 finding is the autolink form
+    // <http://localhost:3000>, which does silence MD034 but then breaks the
+    // companion link-integrity gate:
+    //
+    //     npx --yes markdown-link-check@3.14.2 --quiet README.md
+    //
+    // markdown-link-check probes every link it finds. Nothing is listening on
+    // the reader's machine, so it reports
+    //     ERROR: 1 dead link found in README.md !
+    //     [x] http://localhost:3000 -> Status: 0
+    // and exits 1. The two gates therefore only *appear* to conflict.
+    //
+    // The resolution, verified against both tools: write localhost and any
+    // other unreachable-by-design address as an INLINE CODE SPAN. A code span
+    // is not a bare URL, so MD034 passes; and it is not a link, so it is never
+    // probed. Both gates then exit 0 -- which is exactly why this file needs no
+    // link-check ignore list of any kind.
+    "MD034": true,
+
+    // MD060/table-column-style -- ENFORCED with style "aligned".
+    //
+    // The endpoint, header, configuration and repository-contents tables are
+    // read as data, so their columns must line up in the raw source as well as
+    // in the rendered view. "aligned" is markedly stricter than the default
+    // "consistent" style, and that strictness is the entire point.
+    //
+    // Measured behaviour: a cell whose text is even ONE character wider or
+    // narrower than the corresponding header cell produces
+    //     MD060/table-column-style Table column style
+    //     [Table pipe does not align with header for style "aligned"]
+    // and exit 1 -- one finding per misplaced pipe. A three-column table headed
+    // `| Method | Path | Response body |` with the compact delimiter row
+    // `| --- | --- | --- |` and the body rows `| GET | / | Hello world |` and
+    // `| GET | /good-evening | Good evening |` yields NINE findings under this
+    // setting -- three on the delimiter row and three on each body row -- while
+    // the identical table passes under the default "consistent" style. The
+    // findings clear only once every cell is space-padded to its column width
+    // so each pipe sits at an identical character offset on every line:
+    //     | Method | Path          | Response body |
+    //     | ------ | ------------- | ------------- |
+    //     | GET    | /             | Hello world   |
+    //     | GET    | /good-evening | Good evening  |
+    //
+    // THE CORRECT RESPONSE TO AN MD060 FINDING IS TO PAD THE OFFENDING TABLE,
+    // never to relax or delete this entry. `npm run lint:md` exiting 0 is a
+    // mandatory condition for this repository's documentation, not an advisory
+    // one, and a gate that is weakened whenever it fires is not a gate.
+    "MD060": { "style": "aligned" }
+  },
+
+  // Files to lint when markdownlint-cli2 is invoked with no glob arguments.
+  // Deliberately identical to the glob in the `lint:md` script of
+  // `package.json`, so that a bare `npx markdownlint-cli2` run from the
+  // repository root and `npm run lint:md` examine exactly the same file set and
+  // cannot disagree. The documentation is a single consolidated `README.md`
+  // today; the recursive pattern keeps the gate correct without amendment if a
+  // second Markdown file is ever added anywhere in the tree.
+  "globs": ["**/*.md"],
+
+  // Paths excluded from the gate. Both are git-ignored build or vendor trees,
+  // and both exclusions are load-bearing rather than cosmetic:
+  //
+  //   node_modules/  Markdown vendored inside installed dependencies. At the
+  //                  dependency set pinned by `package-lock.json` this tree
+  //                  contains 116 `.md` files against exactly one of our own,
+  //                  so linting it would bury this repository's findings under
+  //                  upstream noise that no contributor here can fix.
+  //   docs-api/      Generated JSDoc output, written by `npm run docs`. It is
+  //                  build output rather than source of record, it is
+  //                  regenerated on demand, and it is never committed.
+  //
+  // Holding this list to exactly these two entries means an exclusion can never
+  // be used to hide a genuine finding in the repository's own documentation.
+  "ignores": ["node_modules/**", "docs-api/**"]
+}
