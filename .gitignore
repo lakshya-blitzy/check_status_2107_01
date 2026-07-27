@@ -1,10 +1,11 @@
 # Ignore rules for check_status_2107_01.
 #
-# Every pattern below names an artifact that one of the repository's documented
-# commands actually produces, so nothing here is speculative. The converse
-# matters just as much: `large.csv` is deliberately NOT ignored, because it is a
-# committed dataset that the README's verification runbook checks by row count
-# and content. Editor, IDE and OS patterns are intentionally omitted too.
+# Every pattern below names a real local artifact -- installed dependencies,
+# generated output, transient logs or machine-specific configuration -- so
+# nothing here is speculative. The converse matters just as much: `large.csv` is
+# deliberately NOT ignored, because it is a committed dataset that the README's
+# verification runbook checks by row count and content. Editor, IDE and OS
+# patterns are intentionally omitted too.
 
 # Installed dependency tree, materialised by `npm install` / `npm ci` and
 # reproducible in full from `package.json` plus `package-lock.json` (67
@@ -27,7 +28,8 @@ npm-debug.log*
 # silently stale documentation of record beside the annotated `server.js`.
 docs-api/
 
-# Python byte-cache, written by the interpreter whenever this repository's
-# Python modules are imported, for example while verifying the dataset
-# generator. Machine- and version-specific build output, never source.
+# Python byte-cache from local Python dataset tooling: the interpreter writes
+# this directory whenever a module in this repository is imported, which is why
+# an npm-oriented ignore list needs a Python entry. Machine- and
+# version-specific build output, never source.
 __pycache__/
