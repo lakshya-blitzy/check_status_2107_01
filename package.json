@@ -1,0 +1,19 @@
+{
+  "name": "check_status_2107_01",
+  "version": "1.0.0",
+  "description": "Minimal Node.js HTTP server built with the Express web framework, exposing two GET endpoints.",
+  "main": "server.js",
+  "type": "commonjs",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "docs": "npx --yes jsdoc@4.0.5 server.js -d docs-api",
+    "lint:md": "npx --yes markdownlint-cli2@0.23.2 \"**/*.md\""
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}

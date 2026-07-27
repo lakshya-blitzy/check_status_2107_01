@@ -1,0 +1,14 @@
+# Node.js dependency tree - installed by `npm install` / `npm ci`, never committed.
+node_modules/
+
+# npm crash logs.
+npm-debug.log*
+
+# Local environment overrides (e.g. PORT). Never commit real values.
+.env
+
+# Generated JSDoc HTML API reference (`npm run docs`) - regenerate, never commit.
+docs-api/
+
+# Python byte-cache produced by running the dataset generator.
+__pycache__/
