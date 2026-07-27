@@ -1,26 +1,11 @@
-# Ignore rules for check_status_2107_01.
-#
-# Every pattern below names a real local artifact -- installed dependencies,
-# generated output, transient logs or machine-specific configuration -- so
-# nothing here is speculative. The converse matters just as much: `large.csv` is
-# deliberately NOT ignored, because it is a committed dataset that the README's
-# verification runbook checks by row count and content. Editor, IDE and OS
-# patterns are intentionally omitted too.
-
-# Installed dependency tree, materialised by `npm install` / `npm ci` and
-# reproducible in full from `package.json` plus `package-lock.json` (67
-# packages, pinned to express 5.2.1). Committing it would only add redundant,
-# platform-specific noise. This entry is what makes the README's statement that
-# `node_modules/` is git-ignored true.
+# Installed dependencies; reproducible from `package.json` and
+# `package-lock.json`.
 node_modules/
 
-# npm failure logs: transient diagnostic output, written only when a command
-# crashes, and never part of the source of record.
+# npm failure diagnostics.
 npm-debug.log*
 
-# Local environment overrides -- the server reads `PORT` from the environment.
-# These files hold machine-specific and potentially sensitive values, so they
-# must never be committed.
+# Local `.env` file; may hold machine-specific and sensitive values.
 .env
 
 # Generated JSDoc HTML API reference, emitted into this directory by
@@ -28,8 +13,6 @@ npm-debug.log*
 # silently stale documentation of record beside the annotated `server.js`.
 docs-api/
 
-# Python byte-cache from local Python dataset tooling: the interpreter writes
-# this directory whenever a module in this repository is imported, which is why
-# an npm-oriented ignore list needs a Python entry. Machine- and
-# version-specific build output, never source.
+# Python bytecode cache, which the interpreter normally writes when it imports a
+# module from this repository unless bytecode writing is disabled.
 __pycache__/
