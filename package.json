@@ -1,0 +1,19 @@
+{
+  "name": "check_status_2107_01",
+  "version": "1.0.0",
+  "description": "A minimal Node.js HTTP server built with the Express web framework, exposing two plain-text GET endpoints.",
+  "main": "server.js",
+  "type": "commonjs",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">= 18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
