@@ -137,8 +137,8 @@ app.disable('x-powered-by');
  * //   Content-Length: 11
  * //
  * //   Hello world
- * @see README.md — an "API Reference" entry for this endpoint is planned; the
- *   tracked README does not carry one yet.
+ * @see README.md — the "API Reference" section, subsection "GET /", documents
+ *   this same contract; change both together.
  */
 app.get('/', (req, res) => {
   // `res.send` below is handed a string, and Express then defaults the content
@@ -187,8 +187,8 @@ app.get('/', (req, res) => {
  * //   Content-Length: 12
  * //
  * //   Good evening
- * @see README.md — an "API Reference" entry for this endpoint is planned; the
- *   tracked README does not carry one yet.
+ * @see README.md — the "API Reference" section, subsection "GET /good-evening",
+ *   documents this same contract; change both together.
  */
 app.get('/good-evening', (req, res) => {
   // Set for the same reason as on the root route, and set per route rather
@@ -286,9 +286,9 @@ const ROUTE_PATHS = new Set(['/', '/good-evening']);
  * //   X-Content-Type-Options: nosniff
  * //
  * //   GET, HEAD
- * @see README.md — "API Reference" entries for the 404 branch and the OPTIONS
- *   and HEAD behaviour are planned; the tracked README does not carry them
- *   yet.
+ * @see README.md — the "API Reference" subsections "Unmatched paths and methods
+ *   (404)" and "OPTIONS and HEAD behaviour" document these same contracts;
+ *   change both layers together.
  */
 app.use((req, res, next) => {
   // A path-less `app.use` layer runs for every method, OPTIONS included, and
@@ -367,8 +367,8 @@ app.use((req, res, next) => {
 // is why a deployment should be gated on that probe rather than on process
 // liveness. Rejecting a malformed `PORT` here would change how the service
 // behaves rather than describe it, so the constraint is documented instead. The
-// README's Configuration and Troubleshooting sections are planned to carry the
-// same contract; the tracked README does not document configuration yet.
+// README's Configuration and Troubleshooting sections carry the same contract;
+// change both together.
 //
 // Binding last means every layer above is registered before the first
 // connection can be accepted.
