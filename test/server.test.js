@@ -87,7 +87,6 @@ test('unmatched paths return a generic 404 that does not reflect the path', asyn
   assert.ok(!body.includes('script'));
   assert.ok(!body.includes('alert'));
   assert.ok(!body.includes('%3C'));
-  // Exact-path contracts: case variants, a trailing slash, and a doubled slash must 404 as well.
   for (const near of ['/GOOD-EVENING', '/Good-Evening', '/good-evening/', '//', '/nope']) {
     const variant = await fetch(`${baseUrl}${near}`, { redirect: 'manual' });
     assert.equal(variant.status, 404, `${near} must not match a documented route`);
