@@ -39,8 +39,16 @@ function findFreePort() {
   });
 }
 
+// redirect: 'manual' is what keeps every assertion specific to the route under test. Under
+// fetch's default 'follow' mode a handler that answers with a redirect would be judged by the
+// final response of the chain, so a wrong route could borrow another URL's status, body, and
+// headers - and the runner could be steered to an unintended destination. Manual mode returns
+// the 3xx the requested route actually emitted, which fails the assertion instead of hiding it.
 function request(url) {
-  return fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  return fetch(url, {
+    redirect: 'manual',
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
 }
 
 function spawnServer(port) {
@@ -48,30 +56,52 @@ function spawnServer(port) {
     env: { ...process.env, PORT: String(port) },
     stdio: 'ignore',
   });
-  const state = { child, port, baseUrl: `http://127.0.0.1:${port}`, death: null };
-  child.once('error', (error) => {
-    state.death = `it could not be spawned (${error.message})`;
-  });
-  child.once('exit', (code, signal) => {
-    state.death = `it exited (code ${code}, signal ${signal})`;
+  const state = { child, port, baseUrl: `http://127.0.0.1:${port}`, error: null };
+  // A ChildProcess emits 'error' for a failed spawn AND for a failed kill, so it can fire more
+  // than once and an unhandled one would throw. This listener therefore stays attached for the
+  // child's whole life and only records the error - it never claims the process is gone.
+  child.on('error', (error) => {
+    state.error = error;
   });
   // Do not let the child handle keep the runner alive; registered teardown still terminates it.
   child.unref();
   return state;
 }
 
+// Only the child's own exit state proves the process is gone. An 'error' event does not: kill()
+// can fail on a process that is still running, and a failed spawn reports exitCode without ever
+// emitting 'exit'. Lifecycle decisions (waiting, escalating signals, the last-resort SIGKILL)
+// must consult this, never the error field.
+function hasExited(state) {
+  return state.child.exitCode !== null || state.child.signalCode !== null;
+}
+
+// Why the child cannot serve requests, or null while it is healthy. Unlike hasExited(), a
+// recorded error counts here: a child that failed to spawn cannot answer either.
+function childFailure(state) {
+  if (hasExited(state)) {
+    return `it exited (code ${state.child.exitCode}, signal ${state.child.signalCode})`;
+  }
+  if (state.error) {
+    return `it reported an error (${state.error.message})`;
+  }
+  return null;
+}
+
 async function waitUntilServing(state) {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   for (;;) {
-    if (state.death) return 'dead';
+    if (childFailure(state)) return 'dead';
     try {
       const res = await request(`${state.baseUrl}/`);
       await res.text();
-      if (res.ok) {
-        // Allow a pending EADDRINUSE exit to surface before declaring this child ready.
-        await delay(POLL_INTERVAL_MS);
-        return state.death ? 'dead' : 'serving';
-      }
+      // Any answered request proves the listener is bound, whatever status it carried. Readiness
+      // deliberately does not require a 2xx: judging status or body here would let a single
+      // broken route stall startup and mask every other endpoint's result, and those contracts
+      // are owned by the five tests below.
+      // Allow a pending EADDRINUSE exit to surface before declaring this child ready.
+      await delay(POLL_INTERVAL_MS);
+      return childFailure(state) ? 'dead' : 'serving';
     } catch {
       // server not up yet
     }
@@ -82,19 +112,23 @@ async function waitUntilServing(state) {
 
 async function waitForExit(state, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
-  while (state.death === null && Date.now() < deadline) {
+  while (!hasExited(state) && Date.now() < deadline) {
     await delay(POLL_INTERVAL_MS);
   }
-  return state.death !== null;
+  return hasExited(state);
 }
 
 async function terminate(state) {
-  if (!state || state.death) return;
+  if (!state || hasExited(state)) return;
+  // Signal, then wait for a real exit. kill() reporting false and any 'error' it triggers are
+  // both treated as "still running", so the escalation to SIGKILL happens instead of being
+  // skipped on the assumption that the child is already dead.
   for (const signal of ['SIGTERM', 'SIGKILL']) {
-    if (state.child.kill(signal) && await waitForExit(state, TERMINATION_TIMEOUT_MS)) return;
+    state.child.kill(signal);
+    if (await waitForExit(state, TERMINATION_TIMEOUT_MS)) return;
   }
-  if (await waitForExit(state, TERMINATION_TIMEOUT_MS)) return;
-  throw new Error(`server.js (pid ${state.child.pid}) survived SIGTERM and SIGKILL`);
+  const lastError = state.error ? `; last child error: ${state.error.message}` : '';
+  throw new Error(`server.js (pid ${state.child.pid}) survived SIGTERM and SIGKILL${lastError}`);
 }
 
 // Early Node 18 releases lack node:test lifecycle hooks, so process events own cleanup.
@@ -109,7 +143,8 @@ function registerTeardown() {
     });
   });
   process.once('exit', () => {
-    if (server && !server.death) server.child.kill('SIGKILL');
+    // Actual exit state decides this last resort; an earlier kill error must not skip the signal.
+    if (server && !hasExited(server)) server.child.kill('SIGKILL');
   });
 }
 
@@ -121,7 +156,7 @@ async function startServer() {
     registerTeardown();
     const outcome = await waitUntilServing(state);
     if (outcome === 'serving') return state;
-    const reason = state.death || 'it answered no request in time';
+    const reason = childFailure(state) || 'it answered no request in time';
     failures.push(`attempt ${attempt} on port ${state.port}: ${reason}`);
     await terminate(state);
     server = null;
@@ -132,7 +167,8 @@ async function startServer() {
 async function serverBaseUrl() {
   if (!startup) startup = startServer();
   const state = await startup;
-  assert.equal(state.death, null, `the spawned server.js is gone: ${state.death}`);
+  const failure = childFailure(state);
+  assert.equal(failure, null, `the spawned server.js is unusable: ${failure}`);
   return state.baseUrl;
 }
 
@@ -157,7 +193,7 @@ test('GET / still works after the new route was added (regression)', TEST_OPTION
   assert.equal(await res.text(), 'Hello world');
 });
 
-test('unknown path returns a generic 404 that does not reflect the path', TEST_OPTIONS, async () => {
+test('unmatched paths return a generic 404 that does not reflect the path', TEST_OPTIONS, async () => {
   const baseUrl = await serverBaseUrl();
   const res = await request(`${baseUrl}/%3Cscript%3Ealert(1)%3C/script%3E`);
   assert.equal(res.status, 404);
@@ -166,6 +202,15 @@ test('unknown path returns a generic 404 that does not reflect the path', TEST_O
   assert.ok(!body.includes('script'));
   assert.ok(!body.includes('alert'));
   assert.ok(!body.includes('%3C'));
+
+  // The two documented endpoints are exact-path contracts, so these near-misses are not aliases of
+  // them: case variants, a trailing slash, and a doubled slash must all reach the same generic 404
+  // rather than serving a 200. This guards the routing settings that make that true.
+  for (const path of ['/GOOD-EVENING', '/Good-Evening', '/good-evening/', '//', '/nope']) {
+    const variant = await request(`${baseUrl}${path}`);
+    assert.equal(variant.status, 404, `${path} must not match a documented route`);
+    assert.equal(await variant.text(), 'Not Found', `${path} must return the generic 404 body`);
+  }
 });
 
 test('responses do not advertise the framework and set nosniff', TEST_OPTIONS, async () => {

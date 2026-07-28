@@ -9,11 +9,13 @@ A minimal Node.js HTTP server built with the [Express](https://expressjs.com/) w
 
 ## Installation
 
-Install the project's single runtime dependency, `express`:
+Install the project's dependencies — `express` is the only one the project declares, and there are no development dependencies:
 
 ```bash
 npm install
 ```
+
+That one declared dependency resolves to `express@5.2.1` and brings its own transitive dependencies with it, so the installed tree is larger than the manifest: the committed `package-lock.json` pins every package in that tree — 67 in total — which lets `npm ci` reproduce it exactly.
 
 ## Running the server
 
@@ -29,6 +31,8 @@ PORT=8080 npm start
 # Listening on http://localhost:8080
 ```
 
+If the port cannot be bound, the server writes `Failed to listen on port <port>: <reason>` to stderr and exits with a non-zero status code instead of printing the listening line.
+
 ## Endpoints
 
 | Method | Path | Response body | Status |
@@ -36,11 +40,13 @@ PORT=8080 npm start
 | `GET` | `/` | `Hello world` | 200 |
 | `GET` | `/good-evening` | `Good evening` | 200 |
 
-Both bodies are sent exactly as shown, with no trailing newline: `Hello world` is 11 bytes and `Good evening` is 12 bytes. Any other path returns status `404` with the generic body `Not Found`, and that response never echoes the requested path back.
+Both bodies are sent exactly as shown, with no trailing newline: `Hello world` is 11 bytes and `Good evening` is 12 bytes. The two paths are matched exactly: matching is case-sensitive and a trailing slash is significant, so `/GOOD-EVENING` and `/good-evening/` are not the `/good-evening` endpoint. Any other path returns status `404` with the generic body `Not Found`, and that response never echoes the requested path back.
 
-Because each handler sends a string, Express applies its documented default of `Content-Type: text/html; charset=utf-8` and derives `Content-Length` and an `ETag` automatically. The bodies themselves are plain text; that header is a media type, not a rendered document.
+Because each handler sends a string, Express applies its documented default of `Content-Type: text/html; charset=utf-8` and derives `Content-Length` and a weak `ETag` automatically. The bodies themselves are plain text; that header is a media type, not a rendered document. Every response also sets `X-Content-Type-Options: nosniff`, and the `X-Powered-By` header is disabled.
 
 ## Example requests
+
+With the server running on the default port:
 
 ```bash
 curl -s http://localhost:3000/
@@ -60,4 +66,4 @@ npm test
 
 ## Repository contents
 
-Alongside the server, this repository holds a few unrelated Python scratch files. `600Kloc.py` generates the `large.csv` dataset by writing 600,000 rows of the form `<i>,Sample Data <i>`, and `asdas.py`, `sdfsd.py`, and `testing.py` are placeholders. They are independent of the Express server: it neither imports, runs, nor reads any of them, and none of them is served by an endpoint.
+Alongside the server, this repository holds a few unrelated Python scratch files. `600Kloc.py` generates the `large.csv` dataset by writing 600,000 rows of the form `<i>,Sample Data <i>`, and `asdas.py`, `sdfsd.py`, and `testing.py` are placeholders. They are independent of the Express server: they share no process, module namespace, or data path with it, the server neither imports, runs, nor reads any of them, and none of them is served by an endpoint.
