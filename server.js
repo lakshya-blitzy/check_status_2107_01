@@ -147,6 +147,13 @@ app.get('/', (req, res) => {
   // as `text/html; charset=utf-8`. That default is left exactly as it is; the
   // header below pins a browser to the declared type instead of letting it
   // sniff the bytes and reinterpret them as something else.
+  //
+  // One visible consequence of that content type: a browser parses these bytes
+  // as an HTML document, and because a bare greeting carries no doctype it
+  // falls back to quirks mode (`document.compatMode` reads `BackCompat`) and
+  // notes as much in its developer tools. There is no markup here to lay out,
+  // so nothing renders differently, but the notice is expected on every load of
+  // any of this service's responses rather than a symptom of a defect.
   res.set('X-Content-Type-Options', 'nosniff');
 
   // The body is a literal, never a template: nothing from the request is
@@ -233,6 +240,14 @@ const ROUTE_PATHS = new Set(['/', '/good-evening']);
  * Terminal catch-all: answers anything the two routes above did not handle with
  * a generic `404 Not Found`, and defers to Express for an `OPTIONS` request
  * aimed at one of the canonical registered paths.
+ *
+ * Not all of the traffic it answers is sent deliberately: a browser asks for
+ * `/favicon.ico` by itself the first time it opens this service in a session,
+ * and this handler replies with the same generic 404 it gives any other unknown
+ * path — after which the browser remembers that failure for the origin and
+ * stops re-requesting it on later pages. The 404 a browser reports for that
+ * request is an artifact of the request it made on its own, not a fault in the
+ * response the caller asked for.
  *
  * @name notFoundHandler
  * @function
@@ -324,6 +339,37 @@ app.use((req, res, next) => {
 // non-empty value wins and an unset or empty variable falls back to 3000, so a
 // platform that injects `PORT` needs no code change. The value arrives as a
 // string (`PORT=8080` becomes `'8080'`), which `listen` accepts directly.
+//
+// That value is handed on unvalidated, so it has to be an integer from 0 to
+// 65535 — the range Node accepts as a TCP port — and everything else takes one
+// of two very different paths. A value Node reads as a number but cannot use as
+// a port fails loudly: `PORT=65536` is out of range, `PORT=8080.5` is not a
+// whole number, and a whitespace-only `PORT=' '` is rejected outright, so each
+// of them makes this line throw `RangeError [ERR_SOCKET_BAD_PORT]`, and the
+// process then exits 1 without ever listening. `PORT=0` is inside the range but
+// asks the kernel for any free port, so the service comes up on an
+// unpredictable one rather than on 3000.
+//
+// A value that is not a number at all, or that is negative, means something
+// else entirely. Node chooses between a TCP port and an inter-process socket by
+// converting the argument with `Number()`, and a result that is `NaN` or below
+// zero is read as a file-system path for the `server.listen(path)` overload:
+// `PORT=abc`, `PORT=3000abc` and `PORT=-1` therefore bind a Unix-domain socket
+// named `./abc`, `./3000abc` or `./-1` in the process working directory and no
+// TCP port at all. The service does answer HTTP over that socket, but it prints
+// nothing — this file logs nothing by design — and never exits, so a supervisor
+// watching only process liveness reports a healthy deployment while every TCP
+// client is refused, and the socket file outlives the process until something
+// deletes it.
+//
+// `curl -sf http://localhost:$PORT/` tells those two apart: it exits 0 only
+// when a TCP listener really answered, and 7 when nothing is bound there, which
+// is why a deployment should be gated on that probe rather than on process
+// liveness. Rejecting a malformed `PORT` here would change how the service
+// behaves rather than describe it, so the constraint is documented instead. The
+// README's Configuration and Troubleshooting sections are planned to carry the
+// same contract; the tracked README does not document configuration yet.
+//
 // Binding last means every layer above is registered before the first
 // connection can be accepted.
 app.listen(process.env.PORT || 3000);
