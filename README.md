@@ -9,7 +9,7 @@ A minimal Node.js HTTP server built with the [Express](https://expressjs.com/) w
 
 ## Installation
 
-Install the project's dependencies — `express` is the only one the project declares, and there are no development dependencies:
+Install the project's dependencies — `express` is the only direct dependency the project declares, and there are no development dependencies:
 
 ```bash
 npm install
